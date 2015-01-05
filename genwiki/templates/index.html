@@ -1,0 +1,80 @@
+<!DOCTYPE html5>
+<html>
+<head>
+<link href="static/css/site.css" rel="stylesheet" type="text/css"/>
+<link href="data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAAIAAAAAEACAAAAAAAAAEAAAAAAAAAAAAAAAEAAAAAAAD+/f4ASLMwAEq0LgBJszAAS7MwAFjezAD7/f0ASqgrAIvOfQBItC0ASbMvAEqzLwBKsjEA////AESMGQD9/fwASbMuAEiyMADj8uEASrMuAEmyMABLsjAALy4wAP7//gBDjBgATbQyAEmyLwBKsi8AcsNgAFfdywBGoicAWN3LAG7AWADH574AzOfFAHp7ewBKtDEAT7UvAEepLAD+/v4A+/z7AEenKQBJtDAARZchAEqrLgD7/PoATrYyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDRIKKg0NDQ0NDQEDIg0NDQ0XAwMFHQUdBR0DAyANDQ0NDS0DHQUFBQUfAygNDQ0NDScOKwoFHQUdAQMDDQ0NDQ0VGAQDAxMQAwMsAxkNDQ0NAwMDAwMUGgMDAwMDDQ0NJwMRAx4DAwMLCgMUAycNDScDAxgDAwMDAyYpGAMPDQ0NDQMDJCQDAwMDAwcNDQ0NDQ0JDRsDAwMDAA0cDQ0NDQ0NDRYGAwMDAyMnAg0NDQ0NDQghLg0NDScMJScNDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" rel="icon" type="image/x-icon" />
+</head>
+<body>
+<div class="container">
+	<div id="errorMessage" class="error"></div>
+	<div class="row">
+		<div class="col content">
+			<a href="/"><h1 class='wiki-title'>Wiki</h1></a>
+			<div id="postsContainer"></div>
+		</div>
+		<div class="col sidebar">
+			<div>
+				<button id="addPost">Add post</button>
+			</div>
+			<div>
+				<form id="formSearch">
+					<input id="q" type="text" placeholder="search" name="q"/>
+					<button type="submit">Search</button>
+					<button type="reset">Reset</button>
+				</form>
+				<div>
+					<ul id="postsMenu">
+					</ul>
+				</div>
+				<button id="more" type="button">More</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script type="t/template" id="postTmpl">
+<div class="post-head" >
+	<ul class="post-cmd-list">
+		<li><a href="#" class="post-delete">delete</a></li>
+		<li><a href="#" class="post-edit">edit</a></li>
+		<li><a href="#" class="post-close">close</a></li>
+		<li><a href="#" class="post-close-other">close others</a></li>
+	</ul>
+	<h1 class='post-title'>{{'{{=title}}'}}</h1>
+</div>
+<div class="post-body">
+	{{'{{=body}}'}}
+</div>
+<ul class="post-cmd-list">
+	{{'{{@tags}}'}}
+	<li class="tag-link">{{'{{=_val}}'}}</li>
+	{{'{{/@tags}}'}}
+</ul>
+</script>
+<script type="t/template" id="postEditTmpl">
+<form class="form-post-edit">
+	<legend>Add/Edit Post</legend>
+	<input type="hidden" name="isNew" value="{{'{{=isNew}}'}}" class="input-post-new"/>
+	<input type="hidden" name="post_id" value="{{'{{=post_id}}'}}" class="input-post-id"/>
+	<div>
+		<input type="text" name="title" value="{{'{{=title}}'}}" class="input-post-title"/>
+	</div>
+	<div>
+		<textarea name="body" rows="30" cols="100" class="editor">{{'{{=body}}'}}</textarea>
+	</div>
+	<div>
+		<input type="text" name="tags" value="{{'{{=tags}}'}}" class="input-post-tags"/>
+	</div>
+	<div>
+		<button type="submit">Save</button>
+		<button type="button" class="form-cancel">Cancel</button>
+	</div>
+</form>
+</script>
+<script type="t/template" id="postMenuListTmpl">
+<li class="wiki-link" data-id="{{'{{=post_id}}'}}" {{'{{ratio}}'}} style="color:green;" {{'{{/ratio}}'}}>{{'{{=title}}'}}</li>
+</script>
+<script src="static/js/marked.min.js"></script>
+<script src="static/js/t.js"/></script>
+<script src="static/js/genwiki.js"/></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+from genwiki import app
