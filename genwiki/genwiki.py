@@ -9,18 +9,18 @@ import os
 import sys
 import signal
 import time
-import multiprocessing
 import logging
 import ConfigParser
 from bottle import delete, get, post, put, run, template, Bottle, static_file
 from os.path import expanduser
-from . import WIKI_FILE, WIKI_DIR, WIKI_PORT, WIKI_HOST
+from . import WIKI_FILE, WIKI_DIR, WIKI_PORT, WIKI_HOST, gae_app
 from collections import Counter
 from collections import defaultdict
 from .migration import load_wiki
 from .model import *
 
-logging.basicConfig(filename=os.path.join(expanduser('~'), 'wiki.log'), level=logging.DEBUG)
+if not gae_app:
+	logging.basicConfig(filename=os.path.join(expanduser('~'), 'wiki.log'), level=logging.DEBUG)
 
 MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
 
@@ -61,8 +61,10 @@ app.install(BinderPlugin())
 
 @app.get('/')
 def index():
-	import pkg_resources
-	return template(pkg_resources.resource_stream('genwiki', 'templates/index.html').read())
+	if not gae_app:
+		import pkg_resources
+		return template(pkg_resources.resource_stream('genwiki', 'templates/index.html').read())
+	return template('genwiki/templates/index.html')
 
 @app.get('/static/<path:path>')
 def static_resources(path):
@@ -166,19 +168,13 @@ def main(reloader=False, path=None):
 		if path:
 			WIKI_FILE = path
 
-		logging.debug('%s reading %s' % (os.getpid(), WIKI_FILE))
-
-		try:
-			if os.path.exists(WIKI_DIR):
-				_wiki = new_load_wiki(WIKI_DIR)
-			else:
-				_wiki = load_wiki(WIKI_FILE)
-		except Exception, e:
-			logging.error('error %s', e)
+		if os.path.exists(WIKI_DIR):
+			_wiki = new_load_wiki(WIKI_DIR)
+		else:
+			_wiki = load_wiki(WIKI_FILE)
 
 		index = Index()
 		init_index()
 		initialized = True
 
-	logging.debug('%s loaded wiki' % (os.getpid(),))
 	run(app=app, host=WIKI_HOST, port=WIKI_PORT, reloader=reloader)

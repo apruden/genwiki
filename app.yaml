@@ -1,8 +1,16 @@
-application: your-application-id-here
+application: plated-ensign-815
 version: 1
 runtime: python27
 api_version: 1
 threadsafe: yes
+
+handlers:
+#- url: /
+#  static_files: genwiki/templates/index.html
+#  upload: genwiki/templates/index.html
+
+- url: /static
+  static_dir: genwiki/static
 
 - url: .*
   script: main.app

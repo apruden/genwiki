@@ -1,5 +1,5 @@
 /*app*/
-var wikiUrl = 'http://localhost:8088', errorTimeout = null;
+var errorTimeout = null;
 
 marked.setOptions({
   renderer: new marked.Renderer(),
@@ -23,7 +23,7 @@ function ajax(method, url, data, success) {
 		errorTimeout = setTimeout(function(){ msg.innerHTML = '' }, 3000);
 	};
 
-	if(data) {
+	if (data) {
 		xhReq.setRequestHeader('Content-Type', 'application/json');
 		xhReq.send(JSON.stringify(data));
 	} else {
@@ -70,7 +70,7 @@ function loadPosts(q, append) {
 		limit = 20,
 		offset = document.getElementById('postsMenu').children.length;
 
-	ajax('GET', wikiUrl + '/search?q=' + query + '&limit=' + limit + '&offset=' + offset, null, function(e) {
+	ajax('GET', '/search?q=' + query + '&limit=' + limit + '&offset=' + offset, null, function(e) {
 		var resp = this.responseText,
 			result = JSON.parse(resp);
 
@@ -182,7 +182,7 @@ function loadPost(post) {
 		e.preventDefault();
 		var title = this.dataset.id;
 		if (!document.getElementById('!/posts/' + title)) {
-			ajax('GET', wikiUrl + '/posts/' + title, null, function(e) {
+			ajax('GET', '/posts/' + title, null, function(e) {
 				var resp = this.responseText,
 					post = JSON.parse(resp);
 				window.location.hash = '!/posts/' + post.slug;
@@ -199,7 +199,7 @@ function loadPost(post) {
 			post_id = post.dataset.id,
 			res = confirm('Delete post ' + post_id);
 		if (res === true) {
-			ajax('DELETE', wikiUrl + '/posts/' + post_id, null, function(e) {
+			ajax('DELETE', '/posts/' + post_id, null, function(e) {
 				post.parentNode.removeChild(post);
 			});
 		}
@@ -212,7 +212,7 @@ function loadPost(post) {
 
 		post.setAttribute('style', 'display:none;');
 
-		ajax('GET', wikiUrl + '/posts/' + post_id, null, function(e) {
+		ajax('GET', '/posts/' + post_id, null, function(e) {
 			var res = JSON.parse(this.responseText);
 			var tmpl = new t(document.getElementById('postEditTmpl').innerHTML),
 				cont = document.createElement('div'),
@@ -261,7 +261,7 @@ function loadPost(post) {
 			inputTags = that.querySelector('.input-post-tags'),
 			inputBody = that.querySelector('textarea'),
 			data = {title: inputTitle.value, body: inputBody.value, tags: inputTags.value.split(',')},
-			url = wikiUrl + '/posts';
+			url = '/posts';
 
 		if(inputPostId.value) {
 			url = url + '/'+ inputPostId.value;

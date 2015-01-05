@@ -1,1 +1,1 @@
-from genwiki import app
+from genwiki.genwiki import app
