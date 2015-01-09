@@ -26,7 +26,7 @@ MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
 
 logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
 
-_wiki = {}
+_wiki = Wiki()
 
 
 def new_load_wiki(wiki_dir):
@@ -37,6 +37,7 @@ def new_load_wiki(wiki_dir):
 		wiki[f] = PostProxy(f)
 
 	return wiki
+
 
 class BinderPlugin:
 	api = 2
@@ -82,49 +83,50 @@ def static_resources(path):
 
 @app.get('/posts')
 def get_posts(offset=0, limit=10):
-	res = [{'title': p.title, 'slug': p.slug, 'created': p.created, 'modified': p.modified} for p in sorted(_wiki.values(), reverse=True)]
+	res = [{'title': p.title, 'slug': p.slug, 'created': p.created, 'modified': p.modified} for p in sorted(_wiki.find_all(), reverse=True)]
 	return {'posts': res}
 
 @app.get('/posts/:post_id')
 def show_post(post_id):
-	b = _wiki[post_id].body
-	temp = copy.copy(_wiki[post_id].post.__dict__)
+	post = _wiki.get_post(post_id)
 
-	return temp
+	return copy.copy(post.__dict__)
 
 @app.get('/search')
 def search(q=None, limit=20, offset=0):
 	limit, offset, matches = int(limit), int(offset), []
 
 	if not q:
-		matches = [{'title': p.title, 'post_id': p.slug} for p in sorted(_wiki.values(), reverse=True)]
+		matches = [{'title': p.title, 'post_id': p.slug} for p in sorted(_wiki.find_all(), reverse=True)]
 		matches = matches[offset:offset+limit]
 		return {'matches' : matches}
 
 	found = index.search(q)
 
 	for f in found:
-		matches.append({'post_id': _wiki[f].slug, 'title' : _wiki[f].title , 'ratio': 1 if q in found else 0})
+		post = _wiki.get_post(f)
+		matches.append({'post_id': post.slug,
+			'title' : post.title,
+			'ratio': 1 if q in found else 0})
 
 	return {'matches' : matches}
 
 @app.post('/posts')
 def create_post(title, body, tags=[]):
 	tags = [str(t).strip() for t in tags if t]
-	post = _wiki.get(Post.build_slug(title))
+	post = _wiki.get_post(Post.build_slug(title))
 	if post:
 		raise HTTPError(status=409)
 	created = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 	post = Post(title=title, body=body, tags=tags, created=created)
-	post.save_new_post()
-	_wiki[post.slug] = PostProxy(post.slug)
-	temp = copy.copy(_wiki[post.slug].__dict__)
-	return temp
+	_wiki.add_post(post)
+
+	return post.__dict__
 
 @app.put('/posts/:post_id')
 def update_post(post_id, title, body, tags=[]):
 	tags = [str(t).strip() for t in tags if t]
-	post = _wiki.get(post_id)
+	post = _wiki.get_post(post_id)
 
 	if not post:
 		raise HTTPError(status=404)
@@ -135,19 +137,15 @@ def update_post(post_id, title, body, tags=[]):
 	post = Post(title=title, body='\n'.join(body_lines), tags=tags, created=post.created, modified=modified)
 
 	if post.slug != post_id:
-		del _wiki[post_id]
+		wiki.del_post(post_id)
 
-	post.save_new_post()
-	_wiki[post.slug] = PostProxy(post.slug)
-	temp = copy.copy(_wiki[post.slug].__dict__)
-	return temp
+	_wiki.add_post(post)
+
+	return post.__dict__
 
 @app.delete('/posts/:post_id')
 def delete_post(post_id):
-	del _wiki[post_id]
-
-def save_post(post):
-	post.save_new_post()
+	_wiki.del_post(post_id)
 
 
 index = None
@@ -155,9 +153,8 @@ initialized = False
 
 
 def init_index():
-	for p in _wiki.values():
-		with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (p.slug,)), 'r', 'utf8') as f:
-			index.put(p.slug, f.read())
+	for p in _wiki.find_all():
+		index.put(p.slug, p.body)
 
 
 def main(reloader=False, path=None):
@@ -168,9 +165,8 @@ def main(reloader=False, path=None):
 		if path:
 			WIKI_FILE = path
 
-		if os.path.exists(WIKI_DIR):
-			_wiki = new_load_wiki(WIKI_DIR)
-		else:
+		if not os.path.exists(WIKI_DIR):
+			os.makedirs(WIKI_DIR)
 			_wiki = load_wiki(WIKI_FILE)
 
 		index = Index()

@@ -5,6 +5,34 @@ from . import WIKI_DIR
 from collections import defaultdict
 
 
+def _get_filename(slug):
+	return os.path.join(WIKI_DIR, '%s.md' % (slug,))
+
+
+def _build_post(slug):
+	tmp = {}
+	body = []
+	header = False
+	with codecs.open(_get_filename(slug), 'r', 'utf8') as f:
+		for x in f:
+			l = x.strip()
+			if l == '<!---':
+				header = True
+			elif l == '--->':
+				header = False
+			else:
+				if header:
+					k, v = l.split('=', 1)
+					tmp[k.strip()] = v.strip()
+				else:
+					body.append(x)
+
+	tmp.pop('slug', None)
+	tmp['body'] = '\n'.join(body)
+
+	return Post(**tmp)
+
+
 class Index(object):
 	def __init__(self):
 		self.texts, self.words = {}, set()
@@ -90,53 +118,49 @@ class Post(object):
 
 		return (int(self.created > other.created) or -1) if self.created != other.created else 0
 
-	def save_new_post(self):
-		with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (self.slug,)), 'w', 'utf8') as f:
-			f.write('<!---\n')
-			for k, v in self.__dict__.items():
-				if k == 'body':
-					continue
-				elif k == 'tags':
-					f.write('tags = %s\n' % (','.join([t for t in self.tags])))
-				else:
-					f.write('%s = %s\n' % (k, v))
-			f.write('--->\n\n')
-			f.write(self.body)
-
 	@staticmethod
 	def build_slug(title):
 		return re.sub(r'[\.!,;/\?#\ ]+', '-', title).strip().lower()
 
 
 class PostProxy(object):
-	def __init__(self, fn):
-		self.fn = fn
+	def __init__(self, slug):
+		self.slug = slug
 		self.post = None
 
 	def __getattr__(self, name):
 		if not self.post:
-			with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (self.fn,)), 'r', 'utf8') as f:
-				self.post = self.build_post(f)
+			self.post = _build_post(self.slug)
 
 		if name == 'body' and not getattr(self.post, 'body', None):
-			with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (self.fn,)), 'r', 'utf8') as f:
+			with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (self.slug,)), 'r', 'utf8') as f:
 				self.post.body = f.read()
 
 		return getattr(self.post, name)
 
-	def build_post(self, f):
-		tmp = {'body': None}
 
-		for x in f:
-			l = x.strip()
-			if l == '<!---' or not l:
-				continue
-			elif l == '--->':
-				break
-			else:
-				k, v = l.split('=', 1)
-				tmp[k.strip()] = v.strip()
+class Wiki(object):
+	def add_post(self, post):
+		self._save_post(post)
 
-		tmp.pop('slug', None)
+	def del_post(self, post):
+		os.remove(_get_filename(post.slug))
 
-		return Post(**tmp)
+	def get_post(self, slug):
+		return _build_post(slug)
+
+	def find_all(self):
+		return [PostProxy(f.replace('.md', '')) for f in os.listdir(WIKI_DIR)]
+
+	def _save_post(self, post):
+		with codecs.open(_get_filename(post.slug), 'w', 'utf8') as f:
+			f.write('<!---\n')
+			for k, v in post.__dict__.items():
+				if k == 'body':
+					continue
+				elif k == 'tags':
+					f.write('tags = %s\n' % (','.join([t for t in post.tags])))
+				else:
+					f.write('%s = %s\n' % (k, v))
+			f.write('--->\n\n')
+			f.write(post.body)

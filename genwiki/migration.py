@@ -16,13 +16,12 @@ yaml.add_representer(literal_unicode, literal_unicode_representer)
 
 
 def load_wiki(wiki_file):
-	wiki = {}
+	wiki = Wiki()
 
 	with file(wiki_file) as f:
 		for p in yaml.load_all(f):
 			p.pop('slug', None)
 			post = Post(**p)
-			post.save_new_post()
-			wiki[post.slug] = PostProxy(post.slug)
+			wiki.add_post(post)
 
 	return wiki

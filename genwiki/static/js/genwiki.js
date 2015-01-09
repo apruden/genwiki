@@ -1,7 +1,7 @@
 /*app*/
 var errorTimeout = null;
 
-marked.setOptions({
+/*marked.setOptions({
   renderer: new marked.Renderer(),
   gfm: true,
   tables: true,
@@ -10,7 +10,7 @@ marked.setOptions({
   sanitize: true,
   smartLists: true,
   smartypants: false
-});
+});*/
 
 function ajax(method, url, data, success) {
 	var xhReq = new XMLHttpRequest();
