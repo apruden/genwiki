@@ -1,5 +1,4 @@
-import google.appengine.ext import ndb
-
+from google.appengine.ext import ndb
 
 class Post(ndb.Model):
 	slug = ndb.StringProperty()
