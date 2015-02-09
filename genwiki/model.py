@@ -28,7 +28,7 @@ def _build_post(slug):
 					body.append(x)
 
 	tmp.pop('slug', None)
-	tmp['body'] = '\n'.join(body)
+	tmp['body'] = ''.join(body)
 
 	return Post(**tmp)
 
