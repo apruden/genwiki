@@ -147,7 +147,8 @@ class Wiki(object):
 		os.remove(_get_filename(post.slug))
 
 	def get_post(self, slug):
-		return _build_post(slug)
+		if os.path.exists(_get_filename(slug)):
+			return _build_post(slug)
 
 	def find_all(self):
 		return [PostProxy(f.replace('.md', '')) for f in os.listdir(WIKI_DIR)]
