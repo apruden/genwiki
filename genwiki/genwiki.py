@@ -26,7 +26,11 @@ MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
 
 logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
 
-_wiki = Wiki()
+if gae_app:
+	import gae
+	_wiki = gae.Wiki()
+else:
+	_wiki = Wiki()
 
 
 def new_load_wiki(wiki_dir):
@@ -165,7 +169,7 @@ def main(reloader=False, path=None):
 		if path:
 			WIKI_FILE = path
 
-		if not os.path.exists(WIKI_DIR):
+		if not gae_app and not os.path.exists(WIKI_DIR):
 			os.makedirs(WIKI_DIR)
 			_wiki = load_wiki(WIKI_FILE)
 

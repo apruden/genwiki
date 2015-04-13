@@ -1,4 +1,4 @@
-import google.appengine.ext import ndb
+from google.appengine.ext import ndb
 
 
 class Post(ndb.Model):
@@ -19,3 +19,6 @@ class Wiki(object):
 
 	def get_post(self, slug):
 		post = ndb.Key(Post, slug).get()
+
+	def find_all(self):
+		return []
