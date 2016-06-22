@@ -14,12 +14,14 @@ def _build_post(slug):
     tmp = {}
     body = []
     header = False
+    flag = False
 
     with codecs.open(_get_filename(slug), 'r', 'utf8') as f:
         for x in f:
-            if x[0:3] == '---' and not tmp:
+            if x[0:3] == '---' and not flag:
                 tmp = json.loads(x.strip('---'))
             else:
+                flag = True
                 body.append(x)
 
     tmp.pop('slug', None)
@@ -99,9 +101,9 @@ class Index(object):
 
 
 class Post(object):
-    def __init__(self, title, body, created=None, modified=None, tags=None):
+    def __init__(self, title, body, created=None, modified=None, tags=None, **kwargs):
         self.title = str(title).strip()
-        self.body = body.strip() if body else None
+        self.body = str(body.strip()) if body else None
         self.slug = str(Post.build_slug(self.title))
         self.tags = filter(None, tags.split(',') if isinstance(tags, basestring) else tags if tags else [])
         self.created = str(created) if created else None
@@ -150,13 +152,7 @@ class Wiki(object):
 
     def _save_post(self, post):
         with codecs.open(_get_filename(post.slug), 'w', 'utf8') as f:
-            f.write('<!---\n')
-            for k, v in post.__dict__.items():
-                if k == 'body':
-                    continue
-                elif k == 'tags':
-                    f.write('tags = %s\n' % (','.join([t for t in post.tags])))
-                else:
-                    f.write('%s = %s\n' % (k, v))
-            f.write('--->\n\n')
+            tmp = post.__dict__.items()
+            body = tmp.pop('body', '')
+            f.write('---%s---\n', json.dumps(tmp))
             f.write(post.body)

@@ -11,7 +11,8 @@ import signal
 import time
 import logging
 import ConfigParser
-from bottle import delete, get, post, put, run, template, Bottle, static_file
+import zipfile
+from bottle import delete, get, post, put, run, template, Bottle, static_file, request
 from os.path import expanduser
 from . import WIKI_FILE, WIKI_DIR, WIKI_PORT, WIKI_HOST, gae_app
 from collections import Counter
@@ -93,7 +94,6 @@ def get_posts(offset=0, limit=10):
 @app.get('/posts/:post_id')
 def show_post(post_id):
     post = _wiki.get_post(post_id)
-
     return copy.copy(post.__dict__)
 
 @app.get('/search')
@@ -119,11 +119,15 @@ def search(q=None, limit=20, offset=0):
 def create_post(title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(Post.build_slug(title))
+
     if post:
         raise HTTPError(status=409)
+
     created = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     post = Post(title=title, body=body, tags=tags, created=created)
+    print '>>>>2'
     _wiki.add_post(post)
+    print '>>>>4'
 
     return post.__dict__
 
@@ -147,9 +151,51 @@ def update_post(post_id, title, body, tags=[]):
 
     return post.__dict__
 
+
 @app.delete('/posts/:post_id')
 def delete_post(post_id):
     _wiki.del_post(post_id)
+
+
+@app.post('/wiki/import')
+def do_import():
+    print 'sss'
+    try:
+        print '>>1 %s<<' % (request,)
+        uploaded = request.files.get('upload')
+        print '>>2'
+        site_zip = zipfile.ZipFile(uploaded.file,'r')
+        posts = _extract_zipped_files(site_zip)
+        print '>>3'
+        [_wiki.add_post(post) for post in posts]
+    except Exception, e:
+        print e
+
+
+def _extract_zipped_files(site_zip):
+    def _build_post(data):
+        print '>>xx'
+        tmp = {}
+        body = []
+        header = False
+
+        for line in data.split('\n'):
+            if line == '<!---':
+                header = True
+            elif line == '--->':
+                header = False
+            elif header:
+                (k,v) = [v.strip() for v in line.split('=')]
+                tmp[k] = v
+            else:
+                body.append(line)
+
+        tmp['body'] = ''.join(body)
+
+        return Post(**tmp)
+
+    return [_build_post(site_zip.read(p)) for p in site_zip.infolist() if p.file_size]
+
 
 
 index = None
