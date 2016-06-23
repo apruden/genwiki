@@ -12,36 +12,13 @@ import time
 import logging
 import ConfigParser
 import zipfile
-from bottle import delete, get, post, put, run, template, Bottle, static_file, request
+from bottle import delete, get, post, put, run, template, Bottle, static_file, request, install, redirect
 from os.path import expanduser
 from . import WIKI_FILE, WIKI_DIR, WIKI_PORT, WIKI_HOST, gae_app
 from collections import Counter
 from collections import defaultdict
 from .migration import load_wiki
 from .model import *
-
-if not gae_app:
-    logging.basicConfig(filename=os.path.join(expanduser('~'), 'wiki.log'), level=logging.DEBUG)
-
-MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
-
-logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
-
-if gae_app:
-    import gae
-    _wiki = gae.Wiki()
-else:
-    _wiki = Wiki()
-
-
-def new_load_wiki(wiki_dir):
-    wiki = {}
-    files = [f.replace('.md', '') for f in os.listdir(wiki_dir)]
-
-    for f in files:
-        wiki[f] = PostProxy(f)
-
-    return wiki
 
 
 class BinderPlugin:
@@ -62,8 +39,53 @@ class BinderPlugin:
 
         return wrapper
 
+
 app = Bottle()
 app.install(BinderPlugin())
+
+
+if gae_app:
+    import gae
+    _wiki = gae.Wiki()
+    def is_authenticated():
+        user = gae.get_current_user()
+        return bool(user and user.email() in ['alex.prudencio@gmail.com', 'test@example.com'])
+
+    def get_login_url():
+        return gae.get_login_url()
+else:
+    _wiki = Wiki()
+    logging.basicConfig(filename=os.path.join(expanduser('~'), 'wiki.log'), level=logging.DEBUG)
+    def is_authenticated():
+        return True
+
+
+def authenticated(callback):
+    def wrapper(*args, **kwargs):
+        if not is_authenticated():
+            return redirect(get_login_url())
+        return callback(*args, **kwargs)
+    return wrapper
+
+
+app.install(authenticated)
+
+
+MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
+
+
+logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
+
+
+def new_load_wiki(wiki_dir):
+    wiki = {}
+    files = [f.replace('.md', '') for f in os.listdir(wiki_dir)]
+
+    for f in files:
+        wiki[f] = PostProxy(f)
+
+    return wiki
+
 
 @app.get('/')
 def index():
@@ -125,9 +147,7 @@ def create_post(title, body, tags=[]):
 
     created = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     post = Post(title=title, body=body, tags=tags, created=created)
-    print '>>>>2'
     _wiki.add_post(post)
-    print '>>>>4'
 
     return post.__dict__
 
@@ -159,22 +179,14 @@ def delete_post(post_id):
 
 @app.post('/wiki/import')
 def do_import():
-    print 'sss'
-    try:
-        print '>>1 %s<<' % (request,)
-        uploaded = request.files.get('upload')
-        print '>>2'
-        site_zip = zipfile.ZipFile(uploaded.file,'r')
-        posts = _extract_zipped_files(site_zip)
-        print '>>3'
-        [_wiki.add_post(post) for post in posts]
-    except Exception, e:
-        print e
+    uploaded = request.files.get('upload')
+    site_zip = zipfile.ZipFile(uploaded.file,'r')
+    posts = _extract_zipped_files(site_zip)
+    [_wiki.add_post(post) for post in posts]
 
 
 def _extract_zipped_files(site_zip):
     def _build_post(data):
-        print '>>xx'
         tmp = {}
         body = []
         header = False

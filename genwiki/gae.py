@@ -1,5 +1,15 @@
 from google.appengine.ext import ndb
+from google.appengine.api import users
 from .model import Post
+
+
+def get_current_user():
+    return users.get_current_user()
+
+
+def get_login_url():
+    return users.create_login_url()
+
 
 class NdbPost(ndb.Model):
     slug = ndb.StringProperty()
