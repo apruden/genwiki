@@ -21,19 +21,20 @@ class NdbPost(ndb.Model):
 
 
 class Wiki(object):
-    def add_post(self, post):
-        p = NdbPost(id=post.slug, **post.__dict__)
-        p.put()
+    def add_post(self, post, update=False):
+        if not self.get_post(post.slug) or update:
+            p = NdbPost(id=post.slug, **post.__dict__)
+            p.put()
+        else:
+            raise Exception('Post already exists: %r' % post.slug)
 
     def del_post(self, slug):
         ndb.Key(NdbPost, slug).delete()
 
     def get_post(self, slug):
-        try:
-            post = ndb.Key(NdbPost, slug).get()
+        post = ndb.Key(NdbPost, slug).get()
+        if post:
             return Post(**post.to_dict())
-        except Exception, e:
-            print e
 
     def find_all(self):
         return [Post(**post.to_dict()) for post in NdbPost.query().iter()]

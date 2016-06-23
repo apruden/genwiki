@@ -62,7 +62,7 @@ else:
 
 def authenticated(callback):
     def wrapper(*args, **kwargs):
-        if not is_authenticated():
+        if not is_authenticated() and not callback.func_name == 'do_import':
             return redirect(get_login_url())
         return callback(*args, **kwargs)
     return wrapper
@@ -167,7 +167,7 @@ def update_post(post_id, title, body, tags=[]):
     if post.slug != post_id:
         wiki.del_post(post_id)
 
-    _wiki.add_post(post)
+    _wiki.add_post(post, update=True)
 
     return post.__dict__
 
@@ -182,8 +182,11 @@ def do_import():
     uploaded = request.files.get('upload')
     site_zip = zipfile.ZipFile(uploaded.file,'r')
     posts = _extract_zipped_files(site_zip)
-    [_wiki.add_post(post) for post in posts]
-
+    for post in posts:
+        try:
+            _wiki.add_post(post)
+        except Exception, e:
+            print 'ignoring: %s' % e
 
 def _extract_zipped_files(site_zip):
     def _build_post(data):
