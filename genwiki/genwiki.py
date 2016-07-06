@@ -1,4 +1,5 @@
-import bottle
+import httplib2
+import pickle
 import datetime
 import copy
 import codecs
@@ -12,41 +13,112 @@ import time
 import logging
 import ConfigParser
 import zipfile
-from bottle import delete, get, post, put, run, template, Bottle, static_file, request, install, redirect
+import gdrive
+import webapp2
+import jinja2
+import gae
 from os.path import expanduser
 from . import WIKI_FILE, WIKI_DIR, WIKI_PORT, WIKI_HOST, gae_app
 from collections import Counter
 from collections import defaultdict
 from .migration import load_wiki
 from .model import *
+from googleapiclient import discovery
+from oauth2client import client
+from oauth2client.contrib import appengine
+from google.appengine.api import memcache
 
 
-class BinderPlugin:
-    api = 2
+_settings = gae.get_settings()
 
-    def apply(self, callback, route_ctx):
-        def wrapper(*args, **url_args):
-            action_kwargs = {}
-            action_kwargs.update(url_args)
+gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
 
-            if bottle.request.query:
-                action_kwargs.update(bottle.request.query)
-
-            if isinstance(bottle.request.json, dict):
-                action_kwargs.update(bottle.request.json)
-
-            return callback(**action_kwargs)
-
-        return wrapper
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    autoescape=True,
+    extensions=['jinja2.ext.autoescape'])
 
 
-app = Bottle()
-app.install(BinderPlugin())
+app = webapp2.WSGIApplication([(gdrive.decorator.callback_path, gdrive.decorator.callback_handler())])
+
+
+def pascal_case(name):
+    return ''.join([part.capitalize() for part in name.split('_')])
+
+
+def extract_params(f):
+    def wrapper(handler, *args, **kwargs):
+        kwargs.update(handler.request.params)
+        if handler.request.headers.get('content-type') == 'application/json':
+            kwargs.update(json.loads(handler.request.body))
+        res = f(handler, *args, **kwargs)
+        if res:
+            res = json.dumps(res) if isinstance(res, dict) else str(res)
+            handler.response.write(res)
+    return wrapper
+
+
+def handler_factory(f, method):
+    name = '%sHandler' % pascal_case(f.__name__)
+    m = { method: extract_params(f)}
+    return name, type(name, (webapp2.RequestHandler,), m)
+
+
+def _build_decorator(route, method):
+    def wrapper(f):
+        if route not in _routes:
+            name, cls = handler_factory(f, method)
+            app.router.add(webapp2.Route(route, handler=cls))
+            _routes[route] = cls
+        else:
+            setattr(_routes[route], method, extract_params(f))
+        return f
+    return wrapper
+
+
+_routes = {}
+
+
+def get(route):
+    return _build_decorator(route, 'get')
+
+def post(route):
+    return _build_decorator(route, 'post')
+
+
+def put(route):
+    return _build_decorator(route, 'put')
+
+
+def delete(route):
+    return _build_decorator(route, 'delete')
+
+
+def index_new(added):
+    for p in added:
+        tmp = gdrive.get_file(p[2])
+        _wiki.index(p[2], Post.build(tmp))
+
+
+def delete_removed(removed):
+    for p in removed:
+        _wiki.unindex(p[0])
+
+
+@get('/sync')
+@gdrive.decorator.oauth_required
+def sync_files(handler):
+    current = {(f['name'].replace('.md', ''), f['md5Checksum'], f['id']) for f in gdrive.get_files()}
+    saved = {(f.slug, f.checksum, f.gdrive_id) for f in gae.get_files()}
+    removed = saved - current
+    delete_removed(removed)
+    added = current - saved
+    index_new(added)
 
 
 if gae_app:
-    import gae
     _wiki = gae.Wiki()
+
     def is_authenticated():
         user = gae.get_current_user()
         return bool(user and user.email() in ['alex.prudencio@gmail.com', 'test@example.com'])
@@ -68,11 +140,7 @@ def authenticated(callback):
     return wrapper
 
 
-app.install(authenticated)
-
-
 MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
-
 
 logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
 
@@ -87,44 +155,35 @@ def new_load_wiki(wiki_dir):
     return wiki
 
 
-@app.get('/')
-def index():
-    if not gae_app:
-        import pkg_resources
-        return template(pkg_resources.resource_stream('genwiki', 'templates/index.html').read())
-    return template('genwiki/templates/index.html')
+@get('/')
+@gdrive.decorator.oauth_required
+def index(handler):
+    template = JINJA_ENVIRONMENT.get_template('templates/index.html')
+    handler.response.write(template.render())
 
-@app.get('/static/<path:path>')
-def static_resources(path):
-    from email.utils import formatdate
-    import pkg_resources
 
-    if bottle.request.headers.get('If-Modified-Since'):
-        bottle.response.status = 304
-        return
-
-    bottle.response.headers['Last-Modified'] = formatdate(timeval=None, localtime=False, usegmt=True)
-    bottle.response.headers['Content-Type'] = MIME_TYPES.get(os.path.splitext(path)[1], 'text/plain')
-
-    return pkg_resources.resource_stream('genwiki', 'static/%s' % path).read()
-
-@app.get('/posts')
-def get_posts(offset=0, limit=10):
+@get('/posts')
+@gdrive.decorator.oauth_required
+def get_posts(handler, offset=0, limit=10):
     res = [{'title': p.title, 'slug': p.slug, 'created': p.created, 'modified': p.modified} for p in sorted(_wiki.find_all(), reverse=True)]
     return {'posts': res}
 
-@app.get('/posts/:post_id')
-def show_post(post_id):
+
+@get('/posts/<post_id>')
+@gdrive.decorator.oauth_required
+def show_post(handler, post_id):
     post = _wiki.get_post(post_id)
     return copy.copy(post.__dict__)
 
-@app.get('/search')
-def search(q=None, limit=20, offset=0):
+
+@get('/search')
+@gdrive.decorator.oauth_required
+def search(handler, q=None, limit=20, offset=0):
     limit, offset, matches = int(limit), int(offset), []
 
     if not q:
         matches = [{'title': p.title, 'post_id': p.slug} for p in sorted(_wiki.find_all(), reverse=True)]
-        matches = matches[offset:offset+limit]
+        matches = matches[offset : offset+limit]
         return {'matches' : matches}
 
     found = index.search(q)
@@ -137,8 +196,15 @@ def search(q=None, limit=20, offset=0):
 
     return {'matches' : matches}
 
-@app.post('/posts')
-def create_post(title, body, tags=[]):
+
+@post('/_settings')
+def update_settings(handler, **kwargs):
+    gae.update_settings(**kwargs)
+
+
+@post('/posts')
+@gdrive.decorator.oauth_required
+def create_post(handler, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(Post.build_slug(title))
 
@@ -151,8 +217,9 @@ def create_post(title, body, tags=[]):
 
     return post.__dict__
 
-@app.put('/posts/:post_id')
-def update_post(post_id, title, body, tags=[]):
+@put('/posts/<post_id>')
+@gdrive.decorator.oauth_required
+def update_post(handler, post_id, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(post_id)
 
@@ -172,12 +239,14 @@ def update_post(post_id, title, body, tags=[]):
     return post.__dict__
 
 
-@app.delete('/posts/:post_id')
+@delete('/posts/<post_id>')
+@gdrive.decorator.oauth_required
 def delete_post(post_id):
     _wiki.del_post(post_id)
 
 
-@app.post('/wiki/import')
+@post('/wiki/import')
+@gdrive.decorator.oauth_required
 def do_import():
     uploaded = request.files.get('upload')
     site_zip = zipfile.ZipFile(uploaded.file,'r')
@@ -190,27 +259,9 @@ def do_import():
 
 def _extract_zipped_files(site_zip):
     def _build_post(data):
-        tmp = {}
-        body = []
-        header = False
-
-        for line in data.split('\n'):
-            if line == '<!---':
-                header = True
-            elif line == '--->':
-                header = False
-            elif header:
-                (k,v) = [v.strip() for v in line.split('=')]
-                tmp[k] = v
-            else:
-                body.append(line)
-
-        tmp['body'] = ''.join(body)
-
-        return Post(**tmp)
+        return Post.build(data)
 
     return [_build_post(site_zip.read(p)) for p in site_zip.infolist() if p.file_size]
-
 
 
 index = None
@@ -239,3 +290,5 @@ def main(reloader=False, path=None):
         initialized = True
 
     run(app=app, host=WIKI_HOST, port=WIKI_PORT, reloader=reloader)
+
+

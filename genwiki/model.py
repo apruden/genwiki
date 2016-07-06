@@ -10,26 +10,6 @@ def _get_filename(slug):
     return os.path.join(WIKI_DIR, '%s.md' % (slug,))
 
 
-def _build_post(slug):
-    tmp = {}
-    body = []
-    header = False
-    flag = False
-
-    with codecs.open(_get_filename(slug), 'r', 'utf8') as f:
-        for x in f:
-            if x[0:3] == '---' and not flag:
-                tmp = json.loads(x.strip('---'))
-            else:
-                flag = True
-                body.append(x)
-
-    tmp.pop('slug', None)
-    tmp['body'] = ''.join(body)
-
-    return Post(**tmp)
-
-
 class Index(object):
     def __init__(self):
         self.texts, self.words = {}, set()
@@ -119,6 +99,31 @@ class Post(object):
     def build_slug(title):
         return re.sub(r'[\.!,;/\?#\ ]+', '-', title).strip().lower()
 
+    @staticmethod
+    def build(data, title=None):
+        tmp = {}
+        body = []
+        header = False
+
+        for line in data.split('\n'):
+            if line == '<!---':
+                header = True
+            elif line == '--->':
+                header = False
+            elif header:
+                (k,v) = [v.strip() for v in line.split('=')]
+                tmp[k] = v
+
+            body.append(line)
+
+        tmp['body'] = '\n'.join(body)
+
+        if not tmp.get('title'):
+            tmp['title'] = title
+
+        return Post(**tmp)
+
+
 
 class PostProxy(object):
     def __init__(self, slug):
@@ -127,7 +132,8 @@ class PostProxy(object):
 
     def __getattr__(self, name):
         if not self.post:
-            self.post = _build_post(self.slug)
+            with codecs.open(_get_filename(self.slug), 'r', 'utf8') as f:
+                self.post = Post.build(f.read())
 
         if name == 'body' and not getattr(self.post, 'body', None):
             with codecs.open(os.path.join(WIKI_DIR, '%s.md' % (self.slug,)), 'r', 'utf8') as f:
@@ -145,7 +151,8 @@ class Wiki(object):
 
     def get_post(self, slug):
         if os.path.exists(_get_filename(slug)):
-            return _build_post(slug)
+            with codecs.open(_get_filename(slug), 'r', 'utf8') as f:
+                return Post.build(f.read())
 
     def find_all(self):
         return [PostProxy(f.replace('.md', '')) for f in os.listdir(WIKI_DIR)]
@@ -154,5 +161,5 @@ class Wiki(object):
         with codecs.open(_get_filename(post.slug), 'w', 'utf8') as f:
             tmp = post.__dict__.items()
             body = tmp.pop('body', '')
-            f.write('---%s---\n', json.dumps(tmp))
+            f.write('<!---\n%s\n--->\n' % '\n'.join(['%s = %s' % (k, v) for k,v in tmp.items()]))
             f.write(post.body)
