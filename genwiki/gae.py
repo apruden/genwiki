@@ -1,7 +1,8 @@
 from google.appengine.ext import ndb
 from google.appengine.api import users
 from .model import Post
-import gdrive
+#import gdrive as data
+import github as data
 import hashlib
 
 def get_current_user():
@@ -27,8 +28,7 @@ class NdbPost(ndb.Model):
     title = ndb.StringProperty()
     created = ndb.StringProperty()
     modified = ndb.StringProperty()
-    checksum = ndb.StringProperty()
-    gdrive_id = ndb.StringProperty()
+    data_id = ndb.StringProperty()
 
 
 def get_settings():
@@ -45,24 +45,27 @@ def update_settings(**kwargs):
 
 
 def get_files():
-    query = ndb.gql('SELECT slug, checksum, gdrive_id FROM NdbPost')
+    query = ndb.gql('SELECT slug, data_id FROM NdbPost')
     return [r for r in query.iter()]
 
 
 class Wiki(object):
     def add_post(self, post, update=False):
         ndb_post = ndb.Key(NdbPost, post.slug).get()
+
         if not ndb_post or update:
-            gdrive_id = ndb_post.gdrive_id if ndb_post else None
-            res = gdrive.upload_file('%s.md' % (post.slug,), post.body, gdrive_id)
-            p = NdbPost(id=post.slug, checksum=hashlib.md5(post.body).hexdigest(), gdrive_id=res['id'], **post.__dict__)
+            data_id = ndb_post.data_id if ndb_post else None
+            res = data.upload_file('%s.md' % (post.slug,), post.body, data_id)
+            p = NdbPost(id=post.slug, data_id=res['id'], **post.__dict__)
             p.put()
         else:
             raise Exception('Post already exists: %r' % post.slug)
 
     def del_post(self, slug):
-        gdrive.delete_file(slug)
-        ndb.Key(NdbPost, slug).delete()
+        post = ndb.Key(NdbPost, slug).get()
+        if post:
+            data.delete_file('%s.md' % slug, post.data_id)
+            ndb.Key(NdbPost, slug).delete()
 
     def get_post(self, slug):
         post = ndb.Key(NdbPost, slug).get()
@@ -72,10 +75,9 @@ class Wiki(object):
     def find_all(self):
         return [Post(**post.to_dict()) for post in NdbPost.query().iter()]
 
-    def index(self, gdrive_id, post):
-        p = NdbPost(id=post.slug, gdrive_id=gdrive_id, checksum=hashlib.md5(post.body).hexdigest(), **post.__dict__)
+    def index(self, data_id, post):
+        p = NdbPost(id=post.slug, data_id=data_id, **post.__dict__)
         p.put()
 
     def unindex(self, slug):
         ndb.Key(NdbPost, slug).delete()
-

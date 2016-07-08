@@ -42,7 +42,8 @@ def get_files():
     results = get_service().files().list(
         q="'%s' in parents" % (_wiki_id,), pageSize=1000, fields='files(id,name,md5Checksum,properties)').execute(http=decorator.http())
 
-    return results.get('files', [])
+    return [{'name': r['name'],
+        'id': r['id']} for r in results.get('files', [])]
 
 
 def get_file(id):
@@ -74,5 +75,5 @@ def upload_file(name, body, id=None):
     return res
 
 
-def delete_file(id):
+def delete_file(name, id):
     res = get_service().files().delete(fileId=id).execute(http=decorator.http())

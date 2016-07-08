@@ -27,11 +27,12 @@ from googleapiclient import discovery
 from oauth2client import client
 from oauth2client.contrib import appengine
 from google.appengine.api import memcache
-
+import github as data
 
 _settings = gae.get_settings()
 
 gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
+data.init(_settings.github_key, _settings.github_repo)
 
 JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
@@ -96,8 +97,8 @@ def delete(route):
 
 def index_new(added):
     for p in added:
-        tmp = gdrive.get_file(p[2])
-        _wiki.index(p[2], Post.build(tmp))
+        tmp = data.get_file(p[1])
+        _wiki.index(p[1], Post.build(tmp))
 
 
 def delete_removed(removed):
@@ -106,10 +107,11 @@ def delete_removed(removed):
 
 
 @get('/sync')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def sync_files(handler):
-    current = {(f['name'].replace('.md', ''), f['md5Checksum'], f['id']) for f in gdrive.get_files()}
-    saved = {(f.slug, f.checksum, f.gdrive_id) for f in gae.get_files()}
+    #TODO: add hash value to test changes on gdrive
+    current = {(f['name'].replace('.md', ''), f['id']) for f in data.get_files()}
+    saved = {(f.slug, f.data_id) for f in gae.get_files()}
     removed = saved - current
     delete_removed(removed)
     added = current - saved
@@ -156,28 +158,28 @@ def new_load_wiki(wiki_dir):
 
 
 @get('/')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def index(handler):
     template = JINJA_ENVIRONMENT.get_template('templates/index.html')
     handler.response.write(template.render())
 
 
 @get('/posts')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def get_posts(handler, offset=0, limit=10):
     res = [{'title': p.title, 'slug': p.slug, 'created': p.created, 'modified': p.modified} for p in sorted(_wiki.find_all(), reverse=True)]
     return {'posts': res}
 
 
 @get('/posts/<post_id>')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def show_post(handler, post_id):
     post = _wiki.get_post(post_id)
     return copy.copy(post.__dict__)
 
 
 @get('/search')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def search(handler, q=None, limit=20, offset=0):
     limit, offset, matches = int(limit), int(offset), []
 
@@ -203,7 +205,7 @@ def update_settings(handler, **kwargs):
 
 
 @post('/posts')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def create_post(handler, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(Post.build_slug(title))
@@ -217,8 +219,9 @@ def create_post(handler, title, body, tags=[]):
 
     return post.__dict__
 
+
 @put('/posts/<post_id>')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def update_post(handler, post_id, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(post_id)
@@ -240,13 +243,13 @@ def update_post(handler, post_id, title, body, tags=[]):
 
 
 @delete('/posts/<post_id>')
-@gdrive.decorator.oauth_required
-def delete_post(post_id):
+#@gdrive.decorator.oauth_required
+def delete_post(handler, post_id):
     _wiki.del_post(post_id)
 
 
 @post('/wiki/import')
-@gdrive.decorator.oauth_required
+#@gdrive.decorator.oauth_required
 def do_import():
     uploaded = request.files.get('upload')
     site_zip = zipfile.ZipFile(uploaded.file,'r')
