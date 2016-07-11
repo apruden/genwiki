@@ -16,7 +16,12 @@ handlers:
   script: main.app
 
 libraries:
+- name: ssl
+  version: latest
 - name: webapp2
   version: latest
 - name: jinja2
   version: latest
+
+env_variables:
+  GAE_USE_SOCKETS_HTTPLIB: 'socket'

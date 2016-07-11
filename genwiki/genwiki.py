@@ -97,8 +97,8 @@ def delete(route):
 
 def index_new(added):
     for p in added:
-        tmp = data.get_file(p[1])
-        _wiki.index(p[1], Post.build(tmp))
+        tmp = data.get_file(p[0], p[1])
+        _wiki.index(p[1], Post.build(tmp, title=p[0]))
 
 
 def delete_removed(removed):

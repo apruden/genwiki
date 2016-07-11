@@ -20,3 +20,8 @@ indexes:
   properties:
   - name: checksum
   - name: slug
+
+- kind: NdbPost
+  properties:
+  - name: data_id
+  - name: slug

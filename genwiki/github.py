@@ -1,5 +1,6 @@
 import urllib, base64, json
 from google.appengine.api import urlfetch
+import httplib
 
 
 class GitClient(object):
@@ -40,13 +41,20 @@ class GitClient(object):
 
         return json.loads(res.content)
 
-    def delete_repos(self, url, data):
+    def delete_repos(self, url, id=None):
+        import os
+        print os.environ['GAE_USE_SOCKETS_HTTPLIB']
         url = url.lstrip('/')
-        url = '%s/repos/%s/%s/%s?access_token=%s' % (self.git_base, self.owner, self.repo, url, self.token)
-        res = urlfetch.fetch(url=url, method=urlfetch.DELETE)
-
-        return json.loads(res.content)
-
+        url = '/repos/%s/%s/%s?access_token=%s' % (self.owner, self.repo, url, self.token)
+        data = json.dumps({'sha': id, 'message': 'deleting'})
+        conn = httplib.HTTPSConnection(self.git_base.replace('https://', ''))
+        conn.putrequest('DELETE', url)
+        conn.putheader('User-Agent', 'Python 2.7')
+        conn.putheader('Content-Type', 'application/json')
+        conn.putheader('Content-Length', '%s' % len(data))
+        conn.endheaders(data)
+        res = conn.getresponse()
+        print res.read()
 
     def get(self, url, binary=False):
         sep = '?' if '?' not in url else '&'
@@ -79,12 +87,12 @@ def upload_file(name, body, id):
 
 
 def delete_file(name, id):
-    url = '/contents/%s?message=%s&sha=%s' % (name, 'deleted file', id)
-    _git.delete_repos(url)
+    url = '/contents/%s' % name
+    _git.delete_repos(url, id)
 
 
-def get_file(path):
-    url = '/contents/%s' % path
+def get_file(name, id):
+    url = '/contents/%s.md' % name
     res = _git.get_repos(url)
     return base64.decodestring(res['content'])
 

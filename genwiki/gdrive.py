@@ -46,7 +46,7 @@ def get_files():
         'id': r['id']} for r in results.get('files', [])]
 
 
-def get_file(id):
+def get_file(name, id):
     import io
     download_service = discovery.build('drive', 'v3', developerKey=_dev_key, http=decorator.http())
     request = download_service.files().get_media(fileId=id)

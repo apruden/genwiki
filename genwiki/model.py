@@ -119,7 +119,7 @@ class Post(object):
         tmp['body'] = '\n'.join(body)
 
         if not tmp.get('title'):
-            tmp['title'] = title
+            tmp['title'] = ' '.join(title.replace('.md', '').split('-'))
 
         return Post(**tmp)
 
