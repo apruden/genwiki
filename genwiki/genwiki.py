@@ -29,22 +29,20 @@ from oauth2client.contrib import appengine
 from google.appengine.api import memcache
 import github as data
 
-_settings = gae.get_settings()
-
-gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
-data.init(_settings.github_key, _settings.github_repo)
+MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
 
 JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
     autoescape=True,
     extensions=['jinja2.ext.autoescape'])
 
+_settings = gae.get_settings()
+
+gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
+data.init(_settings.github_key, _settings.github_repo)
 
 app = webapp2.WSGIApplication([(gdrive.decorator.callback_path, gdrive.decorator.callback_handler())])
 
-
-def pascal_case(name):
-    return ''.join([part.capitalize() for part in name.split('_')])
 
 
 def extract_params(f):
@@ -60,6 +58,8 @@ def extract_params(f):
 
 
 def handler_factory(f, method):
+    pascal_case = lambda name: ''.join([
+        part.capitalize() for part in name.split('_')])
     name = '%sHandler' % pascal_case(f.__name__)
     m = { method: extract_params(f)}
     return name, type(name, (webapp2.RequestHandler,), m)
@@ -82,6 +82,7 @@ _routes = {}
 
 def get(route):
     return _build_decorator(route, 'get')
+
 
 def post(route):
     return _build_decorator(route, 'post')
@@ -107,7 +108,7 @@ def delete_removed(removed):
 
 
 @get('/sync')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def sync_files(handler):
     #TODO: add hash value to test changes on gdrive
     current = {(f['name'].replace('.md', ''), f['id']) for f in data.get_files()}
@@ -142,8 +143,6 @@ def authenticated(callback):
     return wrapper
 
 
-MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
-
 logging.info('Using wiki file: %s and dir: %s', WIKI_FILE, WIKI_DIR)
 
 
@@ -158,28 +157,28 @@ def new_load_wiki(wiki_dir):
 
 
 @get('/')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def index(handler):
     template = JINJA_ENVIRONMENT.get_template('templates/index.html')
     handler.response.write(template.render())
 
 
 @get('/posts')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def get_posts(handler, offset=0, limit=10):
     res = [{'title': p.title, 'slug': p.slug, 'created': p.created, 'modified': p.modified} for p in sorted(_wiki.find_all(), reverse=True)]
     return {'posts': res}
 
 
 @get('/posts/<post_id>')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def show_post(handler, post_id):
     post = _wiki.get_post(post_id)
     return copy.copy(post.__dict__)
 
 
 @get('/search')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def search(handler, q=None, limit=20, offset=0):
     limit, offset, matches = int(limit), int(offset), []
 
@@ -205,13 +204,12 @@ def update_settings(handler, **kwargs):
 
 
 @post('/posts')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def create_post(handler, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(Post.build_slug(title))
 
-    if post:
-        raise HTTPError(status=409)
+    if post: raise HTTPError(status=409)
 
     created = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     post = Post(title=title, body=body, tags=tags, created=created)
@@ -221,7 +219,7 @@ def create_post(handler, title, body, tags=[]):
 
 
 @put('/posts/<post_id>')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def update_post(handler, post_id, title, body, tags=[]):
     tags = [str(t).strip() for t in tags if t]
     post = _wiki.get_post(post_id)
@@ -243,14 +241,17 @@ def update_post(handler, post_id, title, body, tags=[]):
 
 
 @delete('/posts/<post_id>')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def delete_post(handler, post_id):
     _wiki.del_post(post_id)
 
 
 @post('/wiki/import')
-#@gdrive.decorator.oauth_required
+@gdrive.decorator.oauth_required
 def do_import():
+    def _extract_zipped_files(site_zip):
+        return [Post.build(site_zip.read(p)) for p in site_zip.infolist() if p.file_size]
+
     uploaded = request.files.get('upload')
     site_zip = zipfile.ZipFile(uploaded.file,'r')
     posts = _extract_zipped_files(site_zip)
@@ -259,12 +260,6 @@ def do_import():
             _wiki.add_post(post)
         except Exception, e:
             print 'ignoring: %s' % e
-
-def _extract_zipped_files(site_zip):
-    def _build_post(data):
-        return Post.build(data)
-
-    return [_build_post(site_zip.read(p)) for p in site_zip.infolist() if p.file_size]
 
 
 index = None
@@ -281,8 +276,7 @@ def main(reloader=False, path=None):
     global _wiki, WIKI_FILE, index, initialized
 
     if not initialized:
-        if path:
-            WIKI_FILE = path
+        if path: WIKI_FILE = path
 
         if not gae_app and not os.path.exists(WIKI_DIR):
             os.makedirs(WIKI_DIR)
@@ -293,5 +287,3 @@ def main(reloader=False, path=None):
         initialized = True
 
     run(app=app, host=WIKI_HOST, port=WIKI_PORT, reloader=reloader)
-
-

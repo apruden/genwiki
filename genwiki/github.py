@@ -1,11 +1,10 @@
-import urllib, base64, json
+import urllib, base64, os, json, httplib
 from google.appengine.api import urlfetch
-import httplib
+
+GIT_API_URL = 'https://api.github.com'
 
 
 class GitClient(object):
-
-    git_base = 'https://api.github.com'
 
     def __init__(self, owner, repo, token):
         self.owner = owner
@@ -14,7 +13,7 @@ class GitClient(object):
 
     def get_repos(self, url, binary=False):
         url = url.lstrip('/')
-        url = '%s/repos/%s/%s/%s?access_token=%s' % (self.git_base, self.owner, self.repo, url, self.token)
+        url = '%s/repos/%s/%s/%s?access_token=%s' % (GIT_API_URL, self.owner, self.repo, url, self.token)
         res = urlfetch.fetch(url=url, method=urlfetch.GET)
 
         if binary:
@@ -24,37 +23,30 @@ class GitClient(object):
 
     def post_repos(self, url, data):
         url = url.lstrip('/')
-        url = '%s/repos/%s/%s/%s?access_token=%s' % (self.git_base, self.owner, self.repo, url, self.token)
-
-        print '###### %s %s' % (url,data)
-
+        url = '%s/repos/%s/%s/%s?access_token=%s' % (GIT_API_URL, self.owner, self.repo, url, self.token)
         res = urlfetch.fetch(url=url, payload=data, method=urlfetch.POST)
-
-        print '>>>>%s>>>%s' % (res, res.content)
 
         return json.loads(res.content)
 
     def put_repos(self, url, data):
         url = url.lstrip('/')
-        url = '%s/repos/%s/%s/%s?access_token=%s' % (self.git_base, self.owner, self.repo, url, self.token)
+        url = '%s/repos/%s/%s/%s?access_token=%s' % (GIT_API_URL, self.owner, self.repo, url, self.token)
         res = urlfetch.fetch(url=url, payload=data, method=urlfetch.PUT)
 
         return json.loads(res.content)
 
     def delete_repos(self, url, id=None):
-        import os
-        print os.environ['GAE_USE_SOCKETS_HTTPLIB']
         url = url.lstrip('/')
         url = '/repos/%s/%s/%s?access_token=%s' % (self.owner, self.repo, url, self.token)
         data = json.dumps({'sha': id, 'message': 'deleting'})
-        conn = httplib.HTTPSConnection(self.git_base.replace('https://', ''))
+        conn = httplib.HTTPSConnection(GIT_API_URL.replace('https://', ''))
         conn.putrequest('DELETE', url)
         conn.putheader('User-Agent', 'Python 2.7')
         conn.putheader('Content-Type', 'application/json')
         conn.putheader('Content-Length', '%s' % len(data))
         conn.endheaders(data)
         res = conn.getresponse()
-        print res.read()
+        res.read()
 
     def get(self, url, binary=False):
         sep = '?' if '?' not in url else '&'

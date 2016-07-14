@@ -55,7 +55,7 @@ class Wiki(object):
 
         if not ndb_post or update:
             data_id = ndb_post.data_id if ndb_post else None
-            res = data.upload_file('%s.md' % (post.slug,), post.body, data_id)
+            res = data.upload_file('%s.md' % (post.slug,), post.serialize(), data_id)
             p = NdbPost(id=post.slug, data_id=res['id'], **post.__dict__)
             p.put()
         else:

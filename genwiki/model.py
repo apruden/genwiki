@@ -95,6 +95,18 @@ class Post(object):
 
         return (int(self.created > other.created) or -1) if self.created != other.created else 0
 
+    def serialize(self):
+        buf = ['<!---']
+        for k, v in self.__dict__.items():
+            if k not in ['body', 'slug', 'tags']:
+                buf.append('='.join((str(k), str(v))))
+            elif k == 'tags':
+                buf.append('%s=%s' % (k, ','.join(self.tags)))
+        buf.append('--->')
+        buf.append(self.body)
+
+        return '\n'.join(buf)
+
     @staticmethod
     def build_slug(title):
         return re.sub(r'[\.!,;/\?#\ ]+', '-', title).strip().lower()
@@ -111,7 +123,7 @@ class Post(object):
             elif line == '--->':
                 header = False
             elif header:
-                (k,v) = [v.strip() for v in line.split('=')]
+                (k, v) = [v.strip() for v in line.split('=')]
                 tmp[k] = v
 
             body.append(line)
@@ -122,7 +134,6 @@ class Post(object):
             tmp['title'] = ' '.join(title.replace('.md', '').split('-'))
 
         return Post(**tmp)
-
 
 
 class PostProxy(object):
