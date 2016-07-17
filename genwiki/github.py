@@ -63,8 +63,9 @@ _git = None
 
 def init(github_key, github_repo):
     global _git
-    owner, repo = github_repo.split('/')
-    _git = GitClient(owner, repo, github_key)
+    if github_repo:
+        owner, repo = github_repo.split('/')
+        _git = GitClient(owner, repo, github_key)
 
 
 def upload_file(name, body, id):

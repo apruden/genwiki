@@ -9,7 +9,8 @@ from google.appengine.api import memcache
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 
-CLIENT_SECRETS = os.path.join(os.path.dirname(__file__), 'client_secret_test.json')
+client_secret_file = 'client_secret_test.json' if os.environ.get('SERVER_SOFTWARE', '').startswith('Dev') else 'client_secret.json'
+CLIENT_SECRETS = os.path.join(os.path.dirname(__file__), client_secret_file)
 SCOPES = 'https://www.googleapis.com/auth/drive'
 APPLICATION_NAME = 'genwiki'
 

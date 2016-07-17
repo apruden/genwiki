@@ -27,7 +27,7 @@ from googleapiclient import discovery
 from oauth2client import client
 from oauth2client.contrib import appengine
 from google.appengine.api import memcache
-import github as data
+#import github as data
 
 MIME_TYPES = {'.css': 'text/css', '.js': 'application/javascript' }
 
@@ -36,13 +36,12 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     autoescape=True,
     extensions=['jinja2.ext.autoescape'])
 
+data = gae.NullData()
 _settings = gae.get_settings()
-
 gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
 data.init(_settings.github_key, _settings.github_repo)
 
 app = webapp2.WSGIApplication([(gdrive.decorator.callback_path, gdrive.decorator.callback_handler())])
-
 
 
 def extract_params(f):
@@ -107,7 +106,7 @@ def delete_removed(removed):
         _wiki.unindex(p[0])
 
 
-@get('/sync')
+@get('/_sync')
 @gdrive.decorator.oauth_required
 def sync_files(handler):
     #TODO: add hash value to test changes on gdrive
@@ -201,6 +200,9 @@ def search(handler, q=None, limit=20, offset=0):
 @post('/_settings')
 def update_settings(handler, **kwargs):
     gae.update_settings(**kwargs)
+    _settings = gae.get_settings()
+    gdrive.init(_settings.gdrive_dev_key, _settings.gdrive_wiki_id)
+    data.init(_settings.github_key, _settings.github_repo)
 
 
 @post('/posts')
@@ -233,7 +235,7 @@ def update_post(handler, post_id, title, body, tags=[]):
     post = Post(title=title, body='\n'.join(body_lines), tags=tags, created=post.created, modified=modified)
 
     if post.slug != post_id:
-        wiki.del_post(post_id)
+        _wiki.del_post(post_id)
 
     _wiki.add_post(post, update=True)
 
@@ -246,13 +248,12 @@ def delete_post(handler, post_id):
     _wiki.del_post(post_id)
 
 
-@post('/wiki/import')
-@gdrive.decorator.oauth_required
-def do_import():
+@post('/_import')
+def do_import(handler, **kwargs):
     def _extract_zipped_files(site_zip):
         return [Post.build(site_zip.read(p)) for p in site_zip.infolist() if p.file_size]
 
-    uploaded = request.files.get('upload')
+    uploaded = handler.request.POST.multi['upload']
     site_zip = zipfile.ZipFile(uploaded.file,'r')
     posts = _extract_zipped_files(site_zip)
     for post in posts:

@@ -2,8 +2,9 @@ from google.appengine.ext import ndb
 from google.appengine.api import users
 from .model import Post
 #import gdrive as data
-import github as data
+#import github as data
 import hashlib
+
 
 def get_current_user():
     return users.get_current_user()
@@ -49,6 +50,26 @@ def get_files():
     return [r for r in query.iter()]
 
 
+class NullData(object):
+    def init(*args, **kwargs):
+        pass
+
+    def get_file(*args, **kwargs):
+        pass
+
+    def get_files(*args, **kwargs):
+        pass
+
+    def delete_file(*args, **kwargs):
+        pass
+
+    def upload_file(*args, **kwargs):
+        pass
+
+
+data = NullData()
+
+
 class Wiki(object):
     def add_post(self, post, update=False):
         ndb_post = ndb.Key(NdbPost, post.slug).get()
@@ -56,7 +77,7 @@ class Wiki(object):
         if not ndb_post or update:
             data_id = ndb_post.data_id if ndb_post else None
             res = data.upload_file('%s.md' % (post.slug,), post.serialize(), data_id)
-            p = NdbPost(id=post.slug, data_id=res['id'], **post.__dict__)
+            p = NdbPost(id=post.slug, data_id=res.get('id') if res else None, **post.__dict__)
             p.put()
         else:
             raise Exception('Post already exists: %r' % post.slug)
